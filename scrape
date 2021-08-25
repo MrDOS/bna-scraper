@@ -1,0 +1,151 @@
+#! /usr/bin/env python3
+
+import argparse
+from collections import namedtuple
+import json
+import logging
+import os
+# import pickle
+import re
+import requests
+
+BNA_API_URL_PREFIX = 'https://www.britishnewspaperarchive.co.uk/viewer/items/'
+BNA_VIEWER_URL_PREFIX = 'https://www.britishnewspaperarchive.co.uk/viewer/'
+
+BNA_URL_PATTERN = re.compile(
+    '^https?://(www.)?britishnewspaperarchive.co.uk/viewer(/items)?/(?P<page>(?P<issue>\w+/\d+/\d+)/\d+/(?P<page_number>\d+))'
+)
+
+Page = namedtuple('Page', ['url_suffix', 'metadata'])
+
+
+def main():
+    logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
+                        datefmt='%FT%T%z',
+                        level=logging.DEBUG)
+
+    parser = argparse.ArgumentParser(description="""
+        Scrape publication issues from The British Newspaper Archive.
+
+        Page images will be stored in a directory named after the ID of the
+        issue relative to your working directory when you run the script.
+        """,
+                                     epilog="""
+        As an alternative to passing a username and password as arguments, they
+        can be provided as the BNA_USERNAME and BNA_PASSWORD environment
+        variables. Or, if you'd prefer to reuse a browser session, you can set
+        the value of the BNA_SESSION environment variable to the value of your
+        `session_0` cookie.
+        """)
+    parser.add_argument('-u',
+                        '--username',
+                        default=os.environ.get('BNA_USERNAME'),
+                        help='the username for authentication')
+    parser.add_argument('-p',
+                        '--password',
+                        default=os.environ.get('BNA_PASSWORD'),
+                        help='the password for authentication')
+    parser.add_argument('--session',
+                        default=os.environ.get('BNA_SESSION'),
+                        help=argparse.SUPPRESS)
+    parser.add_argument('url', help='the URL of the publication')
+
+    args = parser.parse_args()
+    if args.session is None and (args.username is None
+                                 or args.password is None):
+        parser.error('Either a session ID or both a username and password ' +
+                     'must be provided.')
+
+    if args.session is not None:
+        logging.info('Using a session ID for authentication.')
+    else:
+        # TODO: Username/password authentication.
+        logging.error('Username/password authentication is unimplemented.')
+        return
+
+    session = requests.Session()
+    session.cookies.set('session_0', args.session)
+
+    match = BNA_URL_PATTERN.match(args.url)
+    if not match:
+        logging.error('That doesn\'t look like a BNA URL to me. Giving up!')
+        return
+
+    # For debugging/development, it can be handy to dump all the retrieved page
+    # metadata out to a file to avoid repeated redownloading.
+    # with open('pages.pickle', 'rb') as f:
+    #     pages = pickle.load(f)
+
+    # Based on some initial page URL, we'll retrieve the metadata for the other
+    # pages of the issue.
+    pages = fetch_all_pages_metadata(match.group('page'), session)
+
+    # with open('pages.pickle', 'wb') as f:
+    #     pickle.dump(pages, f)
+
+    # Now we can retrieve images as given by the page metadata.
+    fetch_pages(match.group('issue'), pages, session)
+
+
+def fetch_all_pages_metadata(initial_url_suffix, session):
+    """Identify and fetch the metadata for all pages starting from the metadata
+    of one single page."""
+
+    # We'll start by making an API request for the page we've been given. The
+    # response will tell us about any other pages.
+    logging.info('Fetching metadata for the initial page...')
+    initial_page = fetch_page_metadata(initial_url_suffix, session)
+
+    # Build out a list of all pages.
+    pages = [
+        Page(page['PageUri'], None)
+        if page['PageUri'] != initial_url_suffix else initial_page
+        for page in initial_page.metadata['IssuePages']
+    ]
+
+    for index, page in enumerate(pages):
+        # We'll already have data for the initial page.
+        if not page.metadata is None:
+            logging.info(f'Page {index + 1}/{len(pages)} was the initial ' +
+                         'page. I already have its metadata.')
+            continue
+
+        logging.info(f'Fetching metadata for page {index + 1}/{len(pages)}...')
+        pages[index] = fetch_page_metadata(page.url_suffix, session)
+
+    return pages
+
+
+def fetch_page_metadata(url_suffix, session):
+    """Fetch a page's metadata by its URL suffix."""
+
+    # If the viewer page hasn't been loaded recently (last hour or so), the API
+    # will respond with a 500 status code.
+    session.get(BNA_VIEWER_URL_PREFIX + url_suffix)
+    response = session.get(BNA_API_URL_PREFIX + url_suffix)
+    metadata = json.loads(response.text)
+    return Page(url_suffix, metadata)
+
+
+def fetch_pages(issue, pages, session):
+    """Fetch the images for all pages and write them to disk."""
+
+    urls = set()
+    for page in pages:
+        for item in page.metadata['Items']:
+            for image in item['Images']:
+                urls.add(image['UriPageOriginal'])
+
+    os.makedirs(issue, exist_ok=True)
+
+    for url in urls:
+        filename = f'{issue}{url.rsplit(issue, 1)[-1]}.jpg'
+        logging.info('Retrieving %s...', filename)
+
+        with open(filename, 'wb') as outfile:
+            response = session.get(url, stream=True)
+            outfile.write(response.content)
+
+
+if __name__ == '__main__':
+    main()
