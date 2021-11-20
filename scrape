@@ -110,7 +110,7 @@ def main():
                 pickle.dump(pages, f)
 
     # Now we can retrieve images as given by the page metadata.
-    fetch_pages(match.group('issue'), pages, session)
+    fetch_pages(match.group('issue').upper(), pages, session)
 
 
 def fetch_all_pages_metadata(initial_url_suffix, session):
@@ -165,7 +165,7 @@ def fetch_pages(issue, pages, session):
     os.makedirs(issue, exist_ok=True)
 
     for url in urls:
-        filename = f'{issue}{url.rsplit(issue, 1)[-1]}.jpg'
+        filename = f'{issue}{url.upper().rsplit(issue, 1)[-1]}.jpg'
         logging.info('Retrieving %s...', filename)
 
         with open(filename, 'wb') as outfile:
