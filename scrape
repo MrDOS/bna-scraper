@@ -5,9 +5,10 @@ from collections import namedtuple
 import json
 import logging
 import os
-# import pickle
 import re
 import requests
+
+DEBUG_PAGES = 'pages.pickle'
 
 BNA_API_URL_PREFIX = 'https://www.britishnewspaperarchive.co.uk/viewer/items/'
 BNA_VIEWER_URL_PREFIX = 'https://www.britishnewspaperarchive.co.uk/viewer/'
@@ -48,9 +49,18 @@ def main():
     parser.add_argument('--session',
                         default=os.environ.get('BNA_SESSION'),
                         help=argparse.SUPPRESS)
+    parser.add_argument('-d',
+                        '--debug',
+                        default=os.environ.get('DEBUG'),
+                        action=argparse.BooleanOptionalAction,
+                        help='dump API responses for debugging')
     parser.add_argument('url', help='the URL of the publication')
 
     args = parser.parse_args()
+
+    if args.debug:
+        import pickle
+
     if args.session is None and (args.username is None
                                  or args.password is None):
         parser.error('Either a session ID or both a username and password ' +
@@ -73,15 +83,32 @@ def main():
 
     # For debugging/development, it can be handy to dump all the retrieved page
     # metadata out to a file to avoid repeated redownloading.
-    # with open('pages.pickle', 'rb') as f:
-    #     pages = pickle.load(f)
+    loaded_pages = False
+    if args.debug:
+        try:
+            with open(DEBUG_PAGES, 'rb') as f:
+                logging.debug('I\'m going to load page data from the file '
+                    + f'"{DEBUG_PAGES}" rather than retrieve it from the API. '
+                    + 'If you want to re-request the data from the API, '
+                    + 'delete this file.')
+                pages = pickle.load(f)
+                loaded_pages = True
+        except FileNotFoundError:
+            logging.debug(f'I looked for a file named "{DEBUG_PAGES}" in the '
+                + 'hopes of loading page data from it rather than retrieving '
+                + "it from the API, but I didn't find one.")
 
     # Based on some initial page URL, we'll retrieve the metadata for the other
     # pages of the issue.
-    pages = fetch_all_pages_metadata(match.group('page'), session)
+    if not loaded_pages:
+        pages = fetch_all_pages_metadata(match.group('page'), session)
 
-    # with open('pages.pickle', 'wb') as f:
-    #     pickle.dump(pages, f)
+        if args.debug:
+            with open('pages.pickle', 'wb') as f:
+                logging.debug('I\'m going to save page data to the file '
+                    + f'"{DEBUG_PAGES}" so that I don\'t need to re-request '
+                    + 'it on the next run.')
+                pickle.dump(pages, f)
 
     # Now we can retrieve images as given by the page metadata.
     fetch_pages(match.group('issue'), pages, session)
