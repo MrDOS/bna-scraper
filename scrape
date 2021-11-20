@@ -32,23 +32,22 @@ def main():
         issue relative to your working directory when you run the script.
         """,
                                      epilog="""
-        As an alternative to passing a username and password as arguments, they
-        can be provided as the BNA_USERNAME and BNA_PASSWORD environment
-        variables. Or, if you'd prefer to reuse a browser session, you can set
-        the value of the BNA_SESSION environment variable to the value of your
-        `session_0` cookie.
+        As an alternative to passing a browser session token as an argument,
+        you can set the value of the BNA_SESSION environment variable to the
+        value of your `session_0` cookie.
         """)
-    parser.add_argument('-u',
-                        '--username',
-                        default=os.environ.get('BNA_USERNAME'),
-                        help='the username for authentication')
-    parser.add_argument('-p',
-                        '--password',
-                        default=os.environ.get('BNA_PASSWORD'),
-                        help='the password for authentication')
-    parser.add_argument('--session',
+    # parser.add_argument('-u',
+    #                     '--username',
+    #                     default=os.environ.get('BNA_USERNAME'),
+    #                     help='the username for authentication')
+    # parser.add_argument('-p',
+    #                     '--password',
+    #                     default=os.environ.get('BNA_PASSWORD'),
+    #                     help='the password for authentication')
+    parser.add_argument('-s',
+                        '--session',
                         default=os.environ.get('BNA_SESSION'),
-                        help=argparse.SUPPRESS)
+                        help='the value of your `session_0` browser cookie')
     parser.add_argument('-d',
                         '--debug',
                         default=os.environ.get('DEBUG'),
