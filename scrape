@@ -17,7 +17,14 @@ BNA_URL_PATTERN = re.compile(
     '^https?://(www.)?britishnewspaperarchive.co.uk/viewer(/items)?/(?P<page>(?P<issue>\w+/\d+/\d+)/\d+/(?P<page_number>\d+))'
 )
 
-Page = namedtuple('Page', ['url_suffix', 'metadata'])
+
+def url_page_number(url_suffix):
+    return int(url_suffix.rsplit('/', 1)[1])
+
+
+class Page(namedtuple('Page', ['url_suffix', 'metadata'])):
+    def page_number(self):
+        return url_page_number(self.url_suffix)
 
 
 def main():
@@ -25,17 +32,29 @@ def main():
                         datefmt='%FT%T%z',
                         level=logging.DEBUG)
 
-    parser = argparse.ArgumentParser(description="""
-        Scrape publication issues from The British Newspaper Archive.
+    parser = argparse.ArgumentParser(
+        description="""
+Scrape publication issues from The British Newspaper Archive.
 
-        Page images will be stored in a directory named after the ID of the
-        issue relative to your working directory when you run the script.
-        """,
-                                     epilog="""
-        As an alternative to passing a browser session token as an argument,
-        you can set the value of the BNA_SESSION environment variable to the
-        value of your `session_0` cookie.
-        """)
+Page images will be stored in a directory named after the ID of the issue
+relative to your working directory when you run the script.
+        """.strip(),
+        epilog="""
+As an alternative to passing a browser session token as an argument, you can
+set the value of the BNA_SESSION environment variable to the value of your
+`session_0` cookie.
+
+By default, only the single page given will be retrieved. Additional pages from
+the same issue can be retrieved by specifying the “-P” option. Its value can
+either be:
+
+- “all”, to cause all pages for the issue to be downloaded.
+- A 1-based, unordered, comma-separated list of page numbers and/or end-
+  inclusive page ranges. For example, `-P 1,9,3-5` would cause pages 1, 3, 4,
+  5, and 9 to be retrieved. A non-fatal warning will be emitted for each
+  requested page not contained in the issue.
+        """.strip(),
+        formatter_class=argparse.RawDescriptionHelpFormatter)
     # parser.add_argument('-u',
     #                     '--username',
     #                     default=os.environ.get('BNA_USERNAME'),
@@ -48,6 +67,10 @@ def main():
                         '--session',
                         default=os.environ.get('BNA_SESSION'),
                         help='the value of your `session_0` browser cookie')
+    parser.add_argument('-P',
+                        '--pages',
+                        dest='page_ranges',
+                        help='the pages to retrieve')
     parser.add_argument('-d',
                         '--debug',
                         default=os.environ.get('DEBUG'),
@@ -99,7 +122,9 @@ def main():
     # Based on some initial page URL, we'll retrieve the metadata for the other
     # pages of the issue.
     if not loaded_pages:
-        pages = fetch_all_pages_metadata(match.group('page'), session)
+        initial_url_suffix = match.group('page')
+        page_filter = build_page_filter(initial_url_suffix, args.page_ranges)
+        pages = fetch_pages_metadata(initial_url_suffix, page_filter, session)
 
         if args.debug:
             with open('pages.pickle', 'wb') as f:
@@ -112,7 +137,33 @@ def main():
     fetch_pages(match.group('issue').upper(), pages, session)
 
 
-def fetch_all_pages_metadata(initial_url_suffix, session):
+def build_page_filter(initial_url_suffix, page_ranges):
+    # If no page ranges are given, we'll only grab the initial page.
+    if page_ranges is None:
+        return lambda pages: [page for page in pages if page.page_number() == url_page_number(initial_url_suffix)]
+
+    # If we're told to grab all pages, we won't filter at all.
+    if page_ranges == 'all':
+        return lambda pages: pages
+
+    # Otherwise, we'll build a set of permissible page numbers, and check
+    # incoming pages against that set.
+    page_numbers = set()
+
+    for page_range in page_ranges.split(','):
+        page_range = [int(end) for end in page_range.split('-')]
+
+        # Single page number:
+        if len(page_range) == 1:
+            page_numbers.add(page_range[0])
+        # Range of page numbers:
+        elif len(page_range) == 2:
+            for page_number in range(page_range[0], page_range[1] + 1):
+                page_numbers.add(page_number)
+
+    return lambda pages: [page for page in pages if page.page_number() in page_numbers]
+
+def fetch_pages_metadata(initial_url_suffix, page_filter, session):
     """Identify and fetch the metadata for all pages starting from the metadata
     of one single page."""
 
@@ -122,23 +173,25 @@ def fetch_all_pages_metadata(initial_url_suffix, session):
     initial_page = fetch_page_metadata(initial_url_suffix, session)
 
     # Build out a list of all pages.
-    pages = [
+    all_pages = [
         Page(page['PageUri'], None)
-        if page['PageUri'] != initial_url_suffix else initial_page
+        if url_page_number(page['PageUri']) != url_page_number(initial_url_suffix) else initial_page
         for page in initial_page.metadata['IssuePages']
     ]
 
-    for index, page in enumerate(pages):
+    filtered_pages = []
+    for page in page_filter(all_pages):
         # We'll already have data for the initial page.
-        if not page.metadata is None:
-            logging.info(f'Page {index + 1}/{len(pages)} was the initial ' +
-                         'page. I already have its metadata.')
-            continue
+        if page.metadata is None:
+            logging.info(f'Fetching metadata for page {page.page_number()}/{len(all_pages)}...')
+            page = fetch_page_metadata(page.url_suffix, session)
+        else:
+            logging.info(f'Page {page.page_number()}/{len(all_pages)} ' +
+                         'was the initial page. I already have its metadata.')
 
-        logging.info(f'Fetching metadata for page {index + 1}/{len(pages)}...')
-        pages[index] = fetch_page_metadata(page.url_suffix, session)
+        filtered_pages.append(page)
 
-    return pages
+    return filtered_pages
 
 
 def fetch_page_metadata(url_suffix, session):
@@ -159,7 +212,8 @@ def fetch_pages(issue, pages, session):
     for page in pages:
         for item in page.metadata['Items']:
             for image in item['Images']:
-                urls.add(image['UriPageOriginal'])
+                if url_page_number(image['UriPageOriginal']) == page.page_number():
+                    urls.add(image['UriPageOriginal'])
 
     os.makedirs(issue, exist_ok=True)
 
