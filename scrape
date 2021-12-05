@@ -59,8 +59,8 @@ set the value of the BNA_SESSION environment variable to the value of your
 PAGE RANGES:
 
 By default, only the single page given will be retrieved. Additional pages from
-the same issue can be retrieved by specifying the “-P” option. Its value can
-either be:
+the same issue can be retrieved by specifying the “-P, --pages” option. Its
+value can either be:
 
 - “all”, to cause all pages for the issue to be downloaded.
 - A 1-based, unordered, comma-separated list of page numbers and/or end-
@@ -75,9 +75,9 @@ issue relative to your working directory when you run the script. For example,
 
     BL/0002268/18650211/0019.jpg
 
-This can be controlled with the “-o” option. This option takes a format string
-describing the paths of saved pages. The format string should be a path, and
-the following tokens will be interpolated:
+This can be controlled with the “-o, --output” option. This option takes a
+format string describing the paths of saved pages. The format string should be
+a path, and the following tokens will be interpolated:
 
 - {{issue}} will be replaced with the ID of the issue that the page comes from.
 - {{page_number}} will be replaced with the page number, which the API
@@ -108,7 +108,8 @@ Formally, the default output format is:
                         dest='page_ranges',
                         help='the pages to retrieve')
     parser.add_argument('-o',
-                        '--output-format',
+                        '--output',
+                        dest='output_format',
                         default=DEFAULT_OUTPUT_FORMAT,
                         help='the format of output filenames')
     parser.add_argument('-d',
