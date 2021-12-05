@@ -182,10 +182,12 @@ Formally, the default output format is:
 def build_page_filter(initial_url_suffix, page_ranges):
     # If no page ranges are given, we'll only grab the initial page.
     if page_ranges is None:
+        logging.debug('Filtering issue pages to only the initial page.')
         return lambda pages: [page for page in pages if page.page_number() == url_page_number(initial_url_suffix)]
 
     # If we're told to grab all pages, we won't filter at all.
     if page_ranges == 'all':
+        logging.debug('Fetching all pages for the issue.')
         return lambda pages: pages
 
     # Otherwise, we'll build a set of permissible page numbers, and check
@@ -202,6 +204,8 @@ def build_page_filter(initial_url_suffix, page_ranges):
         elif len(page_range) == 2:
             for page_number in range(page_range[0], page_range[1] + 1):
                 page_numbers.add(page_number)
+
+    logging.debug('Fetching page(s) %s.', ', '.join([str(page_number) for page_number in page_numbers]))
 
     return lambda pages: [page for page in pages if page.page_number() in page_numbers]
 
