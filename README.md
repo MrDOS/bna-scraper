@@ -13,8 +13,7 @@ based on the URLs provided by the API.
 
 ## Installing
 
-This script makes use of “f-strings”,
-which were introduced in Python 3.6.
+This script requires Python 3.9.
 Make sure you have a high enough version of Python installed:
 
     python3 --version
