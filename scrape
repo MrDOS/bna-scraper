@@ -66,8 +66,8 @@ value can either be:
 - “all”, to cause all pages for the issue to be downloaded.
 - A 1-based, unordered, comma-separated list of page numbers and/or end-
   inclusive page ranges. For example, `-P 1,9,3-5` would cause pages 1, 3, 4,
-  5, and 9 to be retrieved. A non-fatal warning will be emitted for each
-  requested page not contained in the issue.
+  5, and 9 to be retrieved. Any requested pages not contained in the issue will
+  be silently ignored.
 
 OUTPUT FILENAME FORMAT:
 
