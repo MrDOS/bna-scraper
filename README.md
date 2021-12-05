@@ -72,4 +72,12 @@ Pass this value to the `--session` flag:
 
     ./scrape \
         --session 'BivH+fhT...' \
-        'https://www.britishnewspaperarchive.co.uk/viewer/bl/...'
+        "https://www.britishnewspaperarchive.co.uk/viewer/bl/..."
+
+Note that the Windows `cmd.exe` shell
+does not use single quotation marks (`'`)
+to quote arguments like \*nix shells do.
+You must either not quote the URL
+or quote it in double quotes,
+regardless of what any errant software developer
+might tell you!
