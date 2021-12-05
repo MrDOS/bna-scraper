@@ -5,6 +5,7 @@ from collections import namedtuple
 import json
 import logging
 import os
+import os.path
 import re
 import requests
 
@@ -17,12 +18,24 @@ BNA_URL_PATTERN = re.compile(
     '^https?://(www.)?britishnewspaperarchive.co.uk/viewer(/items)?/(?P<page>(?P<issue>\w+/\d+/\d+)/\d+/(?P<page_number>\d+))'
 )
 
+DEFAULT_OUTPUT_FORMAT = '{issue}/{page_number}.jpg'
+
 
 def url_page_number(url_suffix):
-    return int(url_suffix.rsplit('/', 1)[1])
+    return url_suffix.rsplit('/', 1)[1]
 
 
 class Page(namedtuple('Page', ['url_suffix', 'metadata'])):
+    def image_url(self):
+        for item in self.metadata['Items']:
+            for image in item['Images']:
+                if url_page_number(image['UriPageOriginal']) == self.page_number():
+                    return image['UriPageOriginal']
+        return None
+
+    def issue(self):
+        return self.metadata['CurrentItemId'].rsplit('/', 1)[0]
+
     def page_number(self):
         return url_page_number(self.url_suffix)
 
@@ -35,14 +48,15 @@ def main():
     parser = argparse.ArgumentParser(
         description="""
 Scrape publication issues from The British Newspaper Archive.
-
-Page images will be stored in a directory named after the ID of the issue
-relative to your working directory when you run the script.
         """.strip(),
-        epilog="""
+        epilog=f"""
+AUTHENTICATION:
+
 As an alternative to passing a browser session token as an argument, you can
 set the value of the BNA_SESSION environment variable to the value of your
 `session_0` cookie.
+
+PAGE RANGES:
 
 By default, only the single page given will be retrieved. Additional pages from
 the same issue can be retrieved by specifying the “-P” option. Its value can
@@ -53,6 +67,28 @@ either be:
   inclusive page ranges. For example, `-P 1,9,3-5` would cause pages 1, 3, 4,
   5, and 9 to be retrieved. A non-fatal warning will be emitted for each
   requested page not contained in the issue.
+
+OUTPUT FILENAME FORMAT:
+
+By default, page images will be stored in a directory named after the ID of the
+issue relative to your working directory when you run the script. For example,
+
+    BL/0002268/18650211/0019.jpg
+
+This can be controlled with the “-o” option. This option takes a format string
+describing the paths of saved pages. The format string should be a path, and
+the following tokens will be interpolated:
+
+- {{issue}} will be replaced with the ID of the issue that the page comes from.
+- {{page_number}} will be replaced with the page number, which the API
+  zero-pads to four digits.
+
+Any subdirectories will be created as necessary.
+
+Formally, the default output format is:
+
+   {DEFAULT_OUTPUT_FORMAT}
+
         """.strip(),
         formatter_class=argparse.RawDescriptionHelpFormatter)
     # parser.add_argument('-u',
@@ -71,6 +107,10 @@ either be:
                         '--pages',
                         dest='page_ranges',
                         help='the pages to retrieve')
+    parser.add_argument('-o',
+                        '--output-format',
+                        default=DEFAULT_OUTPUT_FORMAT,
+                        help='the format of output filenames')
     parser.add_argument('-d',
                         '--debug',
                         default=os.environ.get('DEBUG'),
@@ -134,7 +174,7 @@ either be:
                 pickle.dump(pages, f)
 
     # Now we can retrieve images as given by the page metadata.
-    fetch_pages(match.group('issue').upper(), pages, session)
+    fetch_pages(pages, args.output_format, session)
 
 
 def build_page_filter(initial_url_suffix, page_ranges):
@@ -183,10 +223,10 @@ def fetch_pages_metadata(initial_url_suffix, page_filter, session):
     for page in page_filter(all_pages):
         # We'll already have data for the initial page.
         if page.metadata is None:
-            logging.info(f'Fetching metadata for page {page.page_number()}/{len(all_pages)}...')
+            logging.info(f'Fetching metadata for page {int(page.page_number())}/{len(all_pages)}...')
             page = fetch_page_metadata(page.url_suffix, session)
         else:
-            logging.info(f'Page {page.page_number()}/{len(all_pages)} ' +
+            logging.info(f'Page {int(page.page_number())}/{len(all_pages)} ' +
                          'was the initial page. I already have its metadata.')
 
         filtered_pages.append(page)
@@ -205,21 +245,20 @@ def fetch_page_metadata(url_suffix, session):
     return Page(url_suffix, metadata)
 
 
-def fetch_pages(issue, pages, session):
+def fetch_pages(pages, output_format, session):
     """Fetch the images for all pages and write them to disk."""
 
-    urls = set()
     for page in pages:
-        for item in page.metadata['Items']:
-            for image in item['Images']:
-                if url_page_number(image['UriPageOriginal']) == page.page_number():
-                    urls.add(image['UriPageOriginal'])
+        url = page.image_url()
 
-    os.makedirs(issue, exist_ok=True)
-
-    for url in urls:
-        filename = f'{issue}{url.upper().rsplit(issue, 1)[-1]}.jpg'
+        filename = output_format \
+            .replace('{issue}', page.issue()) \
+            .replace('{page_number}', page.page_number())
         logging.info('Retrieving %s...', filename)
+
+        dirname = os.path.dirname(filename)
+        if dirname != '':
+            os.makedirs(dirname, exist_ok=True)
 
         with open(filename, 'wb') as outfile:
             response = session.get(url, stream=True)
