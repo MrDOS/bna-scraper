@@ -207,7 +207,7 @@ def build_page_filter(initial_url_suffix, page_ranges):
 
     logging.debug('Fetching page(s) %s.', ', '.join([str(page_number) for page_number in page_numbers]))
 
-    return lambda pages: [page for page in pages if page.page_number() in page_numbers]
+    return lambda pages: [page for page in pages if int(page.page_number()) in page_numbers]
 
 def fetch_pages_metadata(initial_url_suffix, page_filter, session):
     """Identify and fetch the metadata for all pages starting from the metadata
