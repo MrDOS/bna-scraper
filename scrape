@@ -60,17 +60,16 @@ def main():
     if args.debug:
         import pickle
 
-    if args.session is None and (args.username is None
-                                 or args.password is None):
-        parser.error('Either a session ID or both a username and password ' +
-                     'must be provided.')
+    # if args.session is None and (args.username is None
+    #                              or args.password is None):
+    #     parser.error('Either a session ID or both a username and password ' +
+    #                  'must be provided.')
 
     if args.session is not None:
         logging.info('Using a session ID for authentication.')
     else:
         # TODO: Username/password authentication.
-        logging.error('Username/password authentication is unimplemented.')
-        return
+        parser.error('Username/password authentication is unimplemented.')
 
     session = requests.Session()
     session.cookies.set('session_0', args.session)
