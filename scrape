@@ -47,7 +47,8 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="""
-Scrape publication issues from The British Newspaper Archive.
+Scrape high-resolution imagery from The British Newspaper Archive. This tool
+can retrieve individual pages, ranges of pages, or entire issues.
         """.strip(),
         epilog=f"""
 AUTHENTICATION:

@@ -4,6 +4,9 @@
 of publications,
 and even then only as low-resolution PDFs.
 This script retrieves high-resolution original images
+of individual pages,
+ranges of pages,
+or entire issues
 based on the URLs provided by the API.
 
 [bna]: https://www.britishnewspaperarchive.co.uk/
@@ -33,15 +36,15 @@ If all else fails, you can install it via pip:
 
 ## Using
 
-When run without arguments,
-the script will tell you about its supported arguments.
+When run with the `--help` argument,
+the script will tell you about its supported arguments and options.
 In POSIX-like shells:
 
-    ./scrape
+    ./scrape --help
 
 Or on Windows:
 
-    python3 scrape
+    python3 scrape --help
 
 This script doesn't know how to log into the BNA website,
 so you'll need to do so on its behalf.
