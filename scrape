@@ -169,7 +169,7 @@ Formally, the default output format is:
         pages = fetch_pages_metadata(initial_url_suffix, page_filter, session)
 
         if args.debug:
-            with open('pages.pickle', 'wb') as f:
+            with open(DEBUG_PAGES, 'wb') as f:
                 logging.debug('I\'m going to save page data to the file '
                     + f'"{DEBUG_PAGES}" so that I don\'t need to re-request '
                     + 'it on the next run.')
