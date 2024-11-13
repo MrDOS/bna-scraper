@@ -25,6 +25,10 @@ def url_page_number(url_suffix):
     return url_suffix.rsplit('/', 1)[1]
 
 
+class RetrievalJob(namedtuple('RetrievalJob', ['url', 'page_ranges'])):
+    pass
+
+
 class Page(namedtuple('Page', ['url_suffix', 'metadata'])):
     def image_url(self):
         for item in self.metadata['Items']:
@@ -69,6 +73,17 @@ value can either be:
   5, and 9 to be retrieved. Any requested pages not contained in the issue will
   be silently ignored.
 
+BATCH RETRIEVAL:
+
+Pages from more than one publication can be retrieved in a single script
+invocation by populating a “batch file” and passing it via the “-b, --batch”
+option. The file must contain one publication URL per line, optionally followed
+by a whitespace-separated page range specification. For example,
+
+    https://www.britishnewspaperarchive.co.uk/viewer/bl/0002268/18650211/040/0019
+    https://www.britishnewspaperarchive.co.uk/viewer/bl/0002408/18550125/008/0001 all
+    https://www.britishnewspaperarchive.co.uk/viewer/bl/0003073/18771110/025/0003 1-3,5
+
 OUTPUT FILENAME FORMAT:
 
 By default, page images will be stored in a directory named after the ID of the
@@ -108,6 +123,10 @@ Formally, the default output format is:
                         '--pages',
                         dest='page_ranges',
                         help='the pages to retrieve')
+    parser.add_argument('-b',
+                        '--batch',
+                        dest='batch_file',
+                        help='multiple URLs and page ranges to retrieve')
     parser.add_argument('-o',
                         '--output',
                         dest='output_format',
@@ -118,12 +137,18 @@ Formally, the default output format is:
                         default=os.environ.get('DEBUG'),
                         action=argparse.BooleanOptionalAction,
                         help='dump API responses for debugging')
-    parser.add_argument('url', help='the URL of the publication')
+    parser.add_argument('url',
+                        nargs='?',
+                        help='the URL of the publication')
 
     args = parser.parse_args()
 
-    if args.debug:
-        import pickle
+    if args.batch_file is None and args.url is None:
+        parser.error('Either a URL or a batch file must be given!')
+    elif args.batch_file is not None and args.url is not None:
+        parser.error('A URL and a batch file cannot both be given!')
+    elif args.page_ranges is not None and args.batch_file is not None:
+        parser.error('Batch page ranges may only be given in the batch file!')
 
     # if args.session is None and (args.username is None
     #                              or args.password is None):
@@ -139,7 +164,27 @@ Formally, the default output format is:
     session = requests.Session()
     session.cookies.set('session_0', args.session)
 
-    match = BNA_URL_PATTERN.match(args.url)
+    if args.batch_file is not None:
+        jobs = load_jobs(args.batch_file)
+    else:
+        jobs = [RetrievalJob(args.url, args.page_ranges)]
+
+    for job in jobs:
+        fetch_publication(job, args.output_format, args.debug, session)
+
+
+def load_jobs(batch_file):
+    with open(batch_file, 'r') as batch:
+        jobs = []
+        for line in batch:
+            url, page_ranges = (line.strip().split() + [None] * 2)[:2]
+            if url is not None:
+                jobs.append(RetrievalJob(url, page_ranges))
+        return jobs
+
+
+def fetch_publication(job, output_format, debug, session):
+    match = BNA_URL_PATTERN.match(job.url)
     if not match:
         logging.error('That doesn\'t look like a BNA URL to me. Giving up!')
         return
@@ -147,7 +192,9 @@ Formally, the default output format is:
     # For debugging/development, it can be handy to dump all the retrieved page
     # metadata out to a file to avoid repeated redownloading.
     loaded_pages = False
-    if args.debug:
+    if debug:
+        import pickle
+
         try:
             with open(DEBUG_PAGES, 'rb') as f:
                 logging.debug('I\'m going to load page data from the file '
@@ -165,10 +212,10 @@ Formally, the default output format is:
     # pages of the issue.
     if not loaded_pages:
         initial_url_suffix = match.group('page')
-        page_filter = build_page_filter(initial_url_suffix, args.page_ranges)
+        page_filter = build_page_filter(initial_url_suffix, job.page_ranges)
         pages = fetch_pages_metadata(initial_url_suffix, page_filter, session)
 
-        if args.debug:
+        if debug:
             with open(DEBUG_PAGES, 'wb') as f:
                 logging.debug('I\'m going to save page data to the file '
                     + f'"{DEBUG_PAGES}" so that I don\'t need to re-request '
@@ -176,7 +223,7 @@ Formally, the default output format is:
                 pickle.dump(pages, f)
 
     # Now we can retrieve images as given by the page metadata.
-    fetch_pages(pages, args.output_format, session)
+    fetch_pages(pages, output_format, session)
 
 
 def build_page_filter(initial_url_suffix, page_ranges):
@@ -208,6 +255,7 @@ def build_page_filter(initial_url_suffix, page_ranges):
     logging.debug('Fetching page(s) %s.', ', '.join([str(page_number) for page_number in page_numbers]))
 
     return lambda pages: [page for page in pages if int(page.page_number()) in page_numbers]
+
 
 def fetch_pages_metadata(initial_url_suffix, page_filter, session):
     """Identify and fetch the metadata for all pages starting from the metadata
