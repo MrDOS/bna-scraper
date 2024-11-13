@@ -15,7 +15,7 @@ BNA_API_URL_PREFIX = 'https://www.britishnewspaperarchive.co.uk/viewer/items/'
 BNA_VIEWER_URL_PREFIX = 'https://www.britishnewspaperarchive.co.uk/viewer/'
 
 BNA_URL_PATTERN = re.compile(
-    '^https?://(www.)?britishnewspaperarchive.co.uk/viewer(/items)?/(?P<page>(?P<issue>\w+/\d+/\d+)/\d+/(?P<page_number>\d+))'
+    r'^https?://(www.)?britishnewspaperarchive.co.uk/viewer(/items)?/(?P<page>(?P<issue>\w+/\d+/\d+)/\d+/(?P<page_number>\d+))'
 )
 
 DEFAULT_OUTPUT_FORMAT = '{issue}/{page_number}.jpg'
