@@ -163,6 +163,7 @@ Formally, the default output format is:
 
     session = requests.Session()
     session.cookies.set('session_0', args.session)
+    session.headers.update({'user-agent': 'bna-scraper'})
 
     if args.batch_file is not None:
         jobs = load_jobs(args.batch_file)
