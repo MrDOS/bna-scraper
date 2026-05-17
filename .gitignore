@@ -1,1 +1,12 @@
+# Compiled Python bytecode.
+*.pyc
+
+# Editable installation metadata (created by `pip install --editable .`).
+*.egg-info
+
+# Built wheels and intermediary artifacts (created by `pip wheel .`).
+build/
+*.whl
+
+# Serialized API responses (created by `scrape-bna --debug ...`).
 *.pickle

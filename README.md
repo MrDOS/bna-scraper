@@ -18,32 +18,52 @@ Make sure you have a high enough version of Python installed:
 
     python3 --version
 
-The only external dependency is [Requests].
-This is a very popular library,
-and may be packaged by your OS vendor.
-For example, on Debian-based Linux distributions
-(e.g., Debian, Ubuntu, Mint),
-it's packaged as `python3-requests`:
+### For use
 
-    sudo apt install python3-requests
+As an end user
+(i.e., someone who just wants to use this tool,
+not modify it),
+the easiest way to install it is with [pipx].
+First, [install pipx],
+and confirm you can successfully invoke it:
 
-If all else fails, you can install it via pip:
+    pipx --version
 
-    pip3 install requests
+Then use it to install this tool:
 
-[requests]: https://pypi.org/project/requests/
+    pipx install git+https://github.com/MrDOS/bna-scraper.git
+
+[pipx]: https://pipx.pypa.io/stable/
+[install pipx]: https://pipx.pypa.io/stable/how-to/install-pipx/
+
+### For development
+
+If you want to hack on the tool itself,
+make a local clone of the repository:
+
+    git clone https://github.com/MrDOS/bna-scraper.git
+
+Then create a [virtual environment] – a “venv” – inside the source directory,
+activate it (so that Python tools like pip work within it instead of globally),
+and [editably install] the tool into that venv:
+
+    cd bna-scraper/
+    python3 -m venv .venv
+    . .venv/bin/activate
+    pip install --editable .
+
+You'll need to re-activate the venv
+every time you want to use the tool.
+
+[virtual environment]: https://docs.python.org/3/tutorial/venv.html
+[editably install]: https://setuptools.pypa.io/en/latest/userguide/development_mode.html
 
 ## Using
 
 When run with the `--help` argument,
-the script will tell you about its supported arguments and options.
-In POSIX-like shells:
+the script will tell you about its supported arguments and options:
 
-    ./scrape --help
-
-Or on Windows:
-
-    python3 scrape --help
+    scrape-bna --help
 
 This script doesn't know how to log into the BNA website,
 so you'll need to do so on its behalf.
@@ -70,7 +90,7 @@ In Chrome:
 
 Pass this value to the `--session` flag:
 
-    ./scrape \
+    scrape-bna \
         --session 'BivH+fhT...' \
         "https://www.britishnewspaperarchive.co.uk/viewer/bl/..."
 

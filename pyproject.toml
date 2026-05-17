@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools"]
+
+[project]
+name = "bna-scraper"
+version = "0.0.0"
+description = "Scrape high-resolution imagery from The British Newspaper Archive."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [{ name = "Samuel Coleman", email = "samuel@seenet.ca" }]
+
+dependencies = ["requests"]
+
+[project.urls]
+homepage = "https://github.com/MrDOS/bna-scraper"
+
+[project.scripts]
+scrape-bna = "bna_scraper:main"
